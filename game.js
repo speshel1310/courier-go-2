@@ -2,6 +2,7 @@ class Game {
     constructor() {
         this.score = 0;
         this.timeLeft = 60; // 60 seconds game time
+        this.lives = 3; // Starting with 3 lives
         this.isJumping = false;
         this.currentLane = 1; // 0: left, 1: center, 2: right
         this.obstacles = [];
@@ -79,6 +80,8 @@ class Game {
         this.bestScoreElement = document.getElementById('best-score');
         this.gameContainer = document.getElementById('game-container');
         this.authScreen = document.getElementById('auth-screen');
+        this.livesElement = document.getElementById('lives');
+        this.livesCountElement = this.livesElement ? this.livesElement.querySelector('.lives-count') : null;
 
         // Check if elements are found
         if (!this.player) console.error("Player element not found!");
@@ -92,6 +95,12 @@ class Game {
 
         // Add sound button to game area
         this.initializeSoundButton();
+        
+        // Create lives display if it doesn't exist
+        this.createLivesDisplay();
+        
+        // Create leaderboard button outside game area
+        this.createLeaderboardButton();
 
         // Set event listeners
         this.setupEventListeners();
@@ -156,16 +165,8 @@ class Game {
     }
 
     setupLeaderboard() {
-        const leaderboardBtn = document.getElementById('leaderboard-btn');
         const leaderboard = document.getElementById('leaderboard');
         const closeLeaderboardBtn = document.getElementById('close-leaderboard');
-        
-        if (leaderboardBtn && leaderboard) {
-            leaderboardBtn.addEventListener('click', () => {
-                this.updateLeaderboard();
-                leaderboard.classList.remove('hidden');
-            });
-        }
         
         if (closeLeaderboardBtn && leaderboard) {
             closeLeaderboardBtn.addEventListener('click', () => {
@@ -237,8 +238,40 @@ class Game {
 
     loadPlayerResults() {
         try {
-            // In a real implementation, this would read from local storage or a file
-            // For demo purposes, we'll use localStorage
+            // First try to load from server, then filter for current player
+            fetch('server/game-results.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (Array.isArray(data)) {
+                        this.allResults = data;
+                        
+                        // Update localStorage for offline access
+                        localStorage.setItem('gameResults', JSON.stringify(this.allResults));
+                        
+                        // Filter current player's results
+                        this.playerResults = this.allResults.filter(result => 
+                            result.name === this.playerName && 
+                            result.phone === this.playerPhone
+                        );
+                        
+                        // Get player's best score
+                        if (this.playerResults.length > 0) {
+                            this.bestScore = Math.max(...this.playerResults.map(r => r.score));
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.warn('Error loading from server, falling back to localStorage:', error);
+                    this.loadPlayerResultsFromLocalStorage();
+                });
+        } catch (error) {
+            console.error('Error loading player results:', error);
+            this.loadPlayerResultsFromLocalStorage();
+        }
+    }
+    
+    loadPlayerResultsFromLocalStorage() {
+        try {
             const storedResults = localStorage.getItem('gameResults');
             if (storedResults) {
                 this.allResults = JSON.parse(storedResults);
@@ -255,7 +288,7 @@ class Game {
                 }
             }
         } catch (error) {
-            console.error('Error loading player results:', error);
+            console.error('Error loading player results from localStorage:', error);
             this.playerResults = [];
             this.bestScore = 0;
         }
@@ -263,8 +296,40 @@ class Game {
 
     loadAllResults() {
         try {
-            // In a real implementation, this would read from a file
-            // For demo purposes, we'll use localStorage
+            // First try to load from server
+            fetch('server/game-results.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (Array.isArray(data)) {
+                        this.allResults = data;
+                        
+                        // Update localStorage for offline access
+                        localStorage.setItem('gameResults', JSON.stringify(this.allResults));
+                        
+                        // Update player's results
+                        this.playerResults = this.allResults.filter(result => 
+                            result.name === this.playerName && 
+                            result.phone === this.playerPhone
+                        );
+                        
+                        // Update best score
+                        if (this.playerResults.length > 0) {
+                            this.bestScore = Math.max(...this.playerResults.map(r => r.score));
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.warn('Error loading from server, falling back to localStorage:', error);
+                    this.loadFromLocalStorage();
+                });
+        } catch (error) {
+            console.error('Error loading all results:', error);
+            this.loadFromLocalStorage();
+        }
+    }
+    
+    loadFromLocalStorage() {
+        try {
             const storedResults = localStorage.getItem('gameResults');
             if (storedResults) {
                 this.allResults = JSON.parse(storedResults);
@@ -272,7 +337,7 @@ class Game {
                 this.allResults = [];
             }
         } catch (error) {
-            console.error('Error loading all results:', error);
+            console.error('Error loading from localStorage:', error);
             this.allResults = [];
         }
     }
@@ -299,8 +364,24 @@ class Game {
             this.loadAllResults();
             this.allResults.push(result);
             
-            // Save to localStorage (for demo)
+            // Save to both localStorage and server
             localStorage.setItem('gameResults', JSON.stringify(this.allResults));
+            
+            // Send result to server
+            fetch('server/game-results.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(result)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Result saved to server:', data);
+            })
+            .catch(error => {
+                console.error('Error saving result to server:', error);
+            });
             
             // Update message
             if (this.resultMessageElement) {
@@ -527,6 +608,15 @@ class Game {
     }
 
     handleCollision(obstacle, index) {
+        this.lives--;
+        this.updateLivesDisplay();
+        
+        // Play collision sound
+        if (!this.isMuted && this.audio.collision) {
+            this.audio.collision.currentTime = 0;
+            this.audio.collision.play().catch(e => console.warn('Error playing collision sound:', e));
+        }
+        
         // Show collision message
         if (this.gameArea) {
             const message = document.createElement('div');
@@ -541,6 +631,11 @@ class Game {
 
         obstacle.element.remove();
         this.obstacles.splice(index, 1);
+        
+        // End game if no lives left
+        if (this.lives <= 0) {
+            this.endGame();
+        }
     }
 
     handleCoinCollection(coin, index) {
@@ -588,6 +683,7 @@ class Game {
         // Reset game state
         this.score = 0;
         this.timeLeft = 60;
+        this.lives = 3; // Reset lives to 3
         this.isGameOver = false;
         
         // Update UI
@@ -597,6 +693,7 @@ class Game {
         if (this.timerElement) {
             this.timerElement.textContent = '60';
         }
+        this.updateLivesDisplay();
         
         // Start playing background music
         this.playSound();
@@ -692,6 +789,96 @@ class Game {
          if (this.audio.background) {
             this.audio.background.pause();
          }
+    }
+
+    createLivesDisplay() {
+        if (!this.livesElement) {
+            // Create lives display container if it doesn't exist
+            this.livesElement = document.createElement('div');
+            this.livesElement.id = 'lives';
+            this.livesElement.className = 'lives-display';
+            
+            const livesLabel = document.createElement('span');
+            livesLabel.textContent = 'Жизни: ';
+            this.livesElement.appendChild(livesLabel);
+            
+            this.livesCountElement = document.createElement('span');
+            this.livesCountElement.className = 'lives-count';
+            this.livesElement.appendChild(this.livesCountElement);
+            
+            // Add it near the score/timer
+            const gameInfo = document.querySelector('.game-info');
+            if (gameInfo) {
+                gameInfo.appendChild(this.livesElement);
+            } else if (this.gameArea) {
+                this.gameArea.parentNode.insertBefore(this.livesElement, this.gameArea);
+            }
+        } else {
+            // Если элемент уже существует, найдем внутри него счетчик
+            this.livesCountElement = this.livesElement.querySelector('.lives-count');
+            if (!this.livesCountElement) {
+                // Если почему-то счетчик не найден, создадим его
+                this.livesCountElement = document.createElement('span');
+                this.livesCountElement.className = 'lives-count';
+                this.livesElement.appendChild(this.livesCountElement);
+            }
+        }
+        
+        this.updateLivesDisplay();
+    }
+    
+    updateLivesDisplay() {
+        // Ищем счетчик жизней, если он еще не инициализирован
+        if (!this.livesCountElement) {
+            this.livesCountElement = document.querySelector('.lives-count');
+        }
+        
+        if (this.livesCountElement) {
+            // Отображаем жизни в виде сердечек
+            let heartsHTML = '';
+            for (let i = 0; i < this.lives; i++) {
+                heartsHTML += '❤️';
+            }
+            for (let i = this.lives; i < 3; i++) {
+                heartsHTML += '🖤';
+            }
+            this.livesCountElement.innerHTML = heartsHTML;
+        } else {
+            console.error('Не удалось найти элемент для отображения жизней');
+        }
+    }
+    
+    createLeaderboardButton() {
+        // Get the existing leaderboard button
+        const existingBtn = document.getElementById('leaderboard-btn');
+        
+        // If it exists, remove it from its current location
+        if (existingBtn) {
+            existingBtn.remove();
+        }
+        
+        // Create a new leaderboard button
+        const leaderboardBtn = document.createElement('button');
+        leaderboardBtn.id = 'leaderboard-btn';
+        leaderboardBtn.className = 'control-button';
+        leaderboardBtn.textContent = 'Таблица рекордов';
+        
+        // Find the controls container (where arrow buttons are)
+        const controlsContainer = document.querySelector('.controls');
+        
+        if (controlsContainer) {
+            // Append the button to the controls container
+            controlsContainer.appendChild(leaderboardBtn);
+            
+            // Add event listener
+            leaderboardBtn.addEventListener('click', () => {
+                this.updateLeaderboard();
+                const leaderboard = document.getElementById('leaderboard');
+                if (leaderboard) {
+                    leaderboard.classList.remove('hidden');
+                }
+            });
+        }
     }
 }
 

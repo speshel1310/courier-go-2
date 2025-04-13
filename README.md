@@ -1,45 +1,50 @@
-# Courier GO!
+# Скутер и Шаурма - Browser Game
 
-A simple endless runner browser game where you control a food courier on a bike/scooter.
+Simple browser-based game where a player controls a scooter to collect shawarma and avoid obstacles.
 
-## How to Play
+## Recent Updates
 
-1. Open `index.html` in your web browser
-2. Use the following controls:
-   - Left Arrow (←): Move left
-   - Right Arrow (→): Move right
-   - Up Arrow (↑): Jump
-3. Avoid obstacles (red circles) by switching lanes or jumping
-4. Collect coins (gold circles) to increase your score
-5. You have 3 lives - each collision with an obstacle costs 1 life
-6. Survive for 2 minutes to win!
+1. **3 Lives System**: Player now has 3 lives. Collision with an obstacle removes one life.
+2. **UI Improvements**: 
+   - Leaderboard button moved to control panel at the bottom
+   - Added lives display
+3. **Server-side Results Storage**: Game now saves player results to a server-side file
+
+## Game Setup
+
+### Running the Game
+
+1. Host the game on a PHP-compatible web server
+2. Ensure the server has write permissions for the `server` directory
+3. Access the game through a browser
+
+### Required Files
+
+- `index.html` - Main game HTML
+- `style.css` - Game styles
+- `game.js` - Game logic
+- `server/game-results.php` - Backend for saving results
+
+## Game Controls
+
+- **Left/Right Arrows**: Move the scooter left or right
+- **M Key**: Toggle sound on/off
 
 ## Game Features
 
-- Score counter for collected coins
-- Lives counter (3 hearts)
-- Timer (2 minutes)
-- Win condition: Survive for 2 minutes
-- Lose condition: Lose all 3 lives
-- Restart button
-- Responsive design for mobile and desktop
+- Collect shawarma (🥙) to gain points
+- Avoid obstacles (🐕, 🚐, 🚌)
+- Game ends when time runs out or when you lose all lives
+- Player scores are saved to a leaderboard
+- Responsive design for mobile and desktop play
 
-## Win Condition
+## Technical Implementation
 
-If you survive for 2 minutes without losing all lives, you'll see a win message with a promo code: "FREEDRINK"
+The game uses:
+- HTML5, CSS3, and vanilla JavaScript for front-end
+- PHP for server-side storage of results
+- LocalStorage as a fallback if server is unavailable
 
-## Technical Details
+## Credits
 
-- Built with vanilla HTML, CSS, and JavaScript
-- No external libraries or frameworks
-- Responsive design
-- Simple collision detection
-- Basic animations
-
-## Browser Compatibility
-
-The game should work on all modern browsers that support ES6 JavaScript features.
-
-## Mobile Support
-
-The game is responsive and works on mobile devices. On touch devices, you can use the arrow keys on the virtual keyboard to control the courier. 
+Created as a demo browser game. 
